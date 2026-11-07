@@ -118,6 +118,45 @@ describe( 'Email templates', () => {
     cy.get( '[data-cy=template-open-outreach]' ).should( 'have.attr', 'href', 'https://outreach.16ahead.com/email-processor?handoff=h1' );
   } );
 
+  it( 'sends to the Store customers who asked for emails, and only the rest the second time', () => {
+    cy.intercept( 'GET', `${ API }/templates/customers`, { success: true, count: 3, stores: [ 'Fernwood Coffee' ], canSend: true } ).as( 'customers' );
+    stubTemplates();
+    visitTemplates( '/templates/announcement' );
+    let sends = 0;
+    cy.intercept( 'POST', `${ API }/templates/send-to-customers`, ( req ) => {
+      sends += 1;
+      req.reply( sends === 1 ?
+        { success: true, sendId: req.body.sendId, queued: 2, total: 2, left: 1, lastAt: '2026-11-09T17:00:00.000Z', failed: 0 } :
+        { success: true, sendId: req.body.sendId, queued: 1, total: 3, left: 0, lastAt: '2026-11-09T17:00:15.000Z', failed: 0 } );
+    } ).as( 'sendCustomers' );
+    cy.get( '[data-cy=template-next]' ).click();
+    cy.get( '[data-cy=target-customers]' ).should( 'contain', 'Your Store customers' ).and( 'contain', '3 customers who asked for your emails' ).click();
+    cy.get( '[data-cy=customers-line]' ).should( 'contain', 'asked for news and offers from Fernwood Coffee at checkout' ).and( 'contain', 'unsubscribe link' );
+    cy.get( '[data-cy=customers-send]' ).should( 'contain', 'Send to 3 customers' ).click();
+    cy.wait( '@sendCustomers' ).then( ( first ) => {
+      expect( first.request.body ).to.include( { templateId: 'announcement' } );
+      expect( first.request.body.sendId ).to.match( /^[A-Za-z0-9_-]{8,}$/ );
+      cy.get( '[data-cy=customers-result]' ).should( 'contain', 'Queued for 2 customers' ).and( 'contain', '1 customer still to go' );
+      cy.get( '[data-cy=customers-send]' ).should( 'contain', 'Send to the rest (1 customer)' ).click();
+      // The same send: the backend skips the two already queued.
+      cy.wait( '@sendCustomers' ).its( 'request.body.sendId' ).should( 'eq', first.request.body.sendId );
+    } );
+    cy.get( '[data-cy=customers-result]' ).should( 'contain', 'Queued for 3 customers' );
+    cy.get( '[data-cy=customers-send]' ).should( 'not.exist' );
+  } );
+
+  it( 'from the Store\'s "Email your customers", Next goes straight to them, and says so when none have asked', () => {
+    cy.intercept( 'GET', `${ API }/templates/customers`, { success: true, count: 0, stores: [], canSend: true } ).as( 'customers' );
+    stubTemplates();
+    visitTemplates( '/templates?to=customers' );
+    cy.get( '[data-cy=template-newsletter]' ).click();
+    cy.location( 'search' ).should( 'include', 'to=customers' );
+    cy.get( '[data-cy=template-next]' ).click();
+    cy.get( '[data-cy=target-customers]' ).should( 'have.class', 'on' ).and( 'contain', 'None have asked for emails yet' );
+    cy.get( '[data-cy=customers-line]' ).should( 'contain', 'Email me news and offers' );
+    cy.get( '[data-cy=customers-send]' ).should( 'not.exist' );
+  } );
+
   it( 'says what the profile is missing before anything can send', () => {
     stubTemplates( ( c ) => ( { ...c, problems: [ { field: 'address', message: 'Add a mailing address in your profile. Marketing email must show one.' } ] } ) );
     visitTemplates( '/templates/newsletter' );

@@ -160,7 +160,7 @@
               <button type="button" class="close" (click)="closeSend()" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
             </div>
             <div class="targets">
-              @for (target of targets; track target.id) {
+              @for (target of targets(); track target.id) {
                 <button type="button" class="target" [class.on]="s.target === target.id" (click)="pickTarget(target.id)" [disabled]="s.working" [attr.data-cy]="'target-' + target.id">
                   <b>{{ target.label }}</b><span>{{ target.detail }}</span>
                 </button>
@@ -172,7 +172,14 @@
               <p>Sending goes through Outreach, which this workspace doesn't have yet.</p>
               <a class="primary" [href]="pricingUrl" target="_blank" rel="noopener">See Outreach plans</a>
             }
-            @if (s.canSend === true) {
+            @if (s.canSend === true && s.customers; as c) {
+              <p class="muted" data-cy="customers-line">{{ c.line }}</p>
+              @if (c.resultLine) { <p class="notice" role="status" data-cy="customers-result">{{ c.resultLine }}</p> }
+              @if (c.count && (!c.result || c.result.left)) {
+                <button type="button" class="primary" (click)="sendCustomers()" [disabled]="c.sending" data-cy="customers-send">@if (c.sending) { Sending… } @else { {{ c.sendLabel }} }</button>
+              }
+            }
+            @if (s.canSend === true && !s.customers) {
               @for (fill of s.fillIns; track fill.token) {
                 <label class="field-label" [for]="'fill-' + fill.token">{{ fill.label }}</label>
                 <input [id]="'fill-' + fill.token" class="input" [value]="s.values[fill.token] || ''" (input)="setFill(fill.token, $event)" />

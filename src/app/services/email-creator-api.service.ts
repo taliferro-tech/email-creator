@@ -91,6 +91,9 @@ export interface MayaEmail {
 
 export type HandoffTarget = 'catalyst' | 'composer' | 'drips';
 
+export interface CustomerAudience { count: number; stores: string[]; canSend: boolean }
+export interface CustomerSendResult { sendId: string; queued: number; total: number; left: number; lastAt: string; failed: number }
+
 export interface FillIn {
   token: string;
   label: string;
@@ -216,6 +219,19 @@ export class EmailCreatorApiService {
 
   openSavedTemplate ( documentId: string ): Promise<SavedTemplate> {
     return this.request<SavedTemplate>( 'GET', `templates/saved/${ encodeURIComponent( documentId ) }` );
+  }
+
+  /** Store customers who ticked "Email me news and offers" at checkout. */
+  getCustomerAudience (): Promise<CustomerAudience> {
+    return this.request<CustomerAudience>( 'GET', 'templates/customers' );
+  }
+
+  /**
+   * Queues the email for those customers through Outreach (business hours,
+   * daily limit). The same sendId again only reaches the ones not sent yet.
+   */
+  sendToCustomers ( state: TemplateState, sendId: string ): Promise<CustomerSendResult> {
+    return this.request<CustomerSendResult>( 'POST', 'templates/send-to-customers', { ...state, sendId } );
   }
 
   /** The finished email to the signed-in person only, marked [TEST]. Needs Outreach. */

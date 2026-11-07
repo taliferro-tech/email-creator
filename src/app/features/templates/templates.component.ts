@@ -7,6 +7,8 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../services/auth.service';
 import {
   ApiError,
+  CustomerAudience,
+  CustomerSendResult,
   EmailCreatorApiService,
   EmailTemplate,
   FillIn,
@@ -23,9 +25,21 @@ import { PlatformMenuComponent } from '../../shared/platform-menu/platform-menu.
 import { PROFILE_URL, TemplatePickerComponent } from './template-picker.component';
 
 type PreviewWidth = 'desktop' | 'mobile';
+type SendTarget = HandoffTarget | 'customers';
+
+/** "Your Store customers": who it goes to, worked out once (no template method calls). */
+interface CustomerStep {
+  count: number;
+  line: string;
+  sendLabel: string;
+  sendId: string;
+  sending: boolean;
+  result: CustomerSendResult | null;
+  resultLine: string;
+}
 
 interface SendStep {
-  target: HandoffTarget | null;
+  target: SendTarget | null;
   checking: boolean;
   canSend: boolean | null;
   fillIns: FillIn[];
@@ -33,15 +47,41 @@ interface SendStep {
   working: boolean;
   openUrl: string;
   error: string;
+  customers: CustomerStep | null;
 }
 
 const OUTREACH_PRICING_URL = 'https://outreach.16ahead.com/pricing';
 const RENDER_DELAY_MS = 350;
-const TARGETS: { id: HandoffTarget; label: string; detail: string }[] = [
+const TARGETS: { id: SendTarget; label: string; detail: string }[] = [
   { id: 'catalyst', label: 'Many people', detail: 'Catalyst: pick contacts, each gets their own copy' },
   { id: 'composer', label: 'One person', detail: 'Email Composer' },
   { id: 'drips', label: 'A drip', detail: 'Ready in Drips to schedule' },
 ];
+
+const people = ( n: number ): string => `${ n } ${ n === 1 ? 'customer' : 'customers' }`;
+
+/** Who "Your Store customers" reaches, in words. */
+export function customerLine ( audience: CustomerAudience ): string {
+  if ( !audience.count ) return 'None of your Store customers have asked for emails yet. They can tick “Email me news and offers” when they check out.';
+  const stores = audience.stores.length ? ` from ${ audience.stores.join( ' and ' ) }` : '';
+  return `${ people( audience.count ) } asked for news and offers${ stores } at checkout. It goes out through Outreach during business hours, up to your daily sending limit; any over the limit go out the next business day. Each email has an unsubscribe link.`;
+}
+
+/** After the send: how many, and when the last one goes out. */
+export function customerResultLine ( result: CustomerSendResult ): string {
+  const parts = [ `Queued for ${ people( result.total ) }.` ];
+  const last = Date.parse( result.lastAt );
+  if ( Number.isFinite( last ) ) {
+    parts.push( `The last one goes out ${ new Date( last ).toLocaleString( 'en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' } ) }.` );
+  }
+  if ( result.left ) parts.push( `${ people( result.left ) } still to go: send to the rest to reach them.` );
+  return parts.join( ' ' );
+}
+
+function newSendId (): string {
+  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${ Date.now() }-${ Math.random().toString( 36 ).slice( 2 ) }`;
+  return random.replace( /[^A-Za-z0-9_-]/g, '' ).slice( 0, 40 );
+}
 
 /**
  * Email templates in Email Creator (Ty, 2026-11-05; design_handoff_16ahead_
@@ -70,7 +110,15 @@ export class TemplatesComponent {
 
   readonly profileUrl = PROFILE_URL;
   readonly pricingUrl = OUTREACH_PRICING_URL;
-  readonly targets = TARGETS;
+  /** Store customers who said yes to emails; "Your Store customers" shows once some have (or when the Store sent you here). */
+  readonly audience = signal<CustomerAudience | null>( null );
+  private readonly fromStore = computed( () => this.query().get( 'to' ) === 'customers' );
+  readonly targets = computed( () => {
+    const audience = this.audience();
+    if ( !audience?.count && !this.fromStore() ) return TARGETS;
+    const count = audience?.count || 0;
+    return [ ...TARGETS, { id: 'customers' as SendTarget, label: 'Your Store customers', detail: count ? `${ people( count ) } who asked for your emails` : 'None have asked for emails yet' } ];
+  } );
 
   readonly catalog = signal<TemplateCatalog | null>( null );
   readonly loadError = signal( '' );
@@ -115,7 +163,7 @@ export class TemplatesComponent {
   readonly preheaderNeeded = computed( () => this.needs().includes( 'email.preheader' ) );
   readonly preheader = computed( () => this.content()[ 'email.preheader' ] || '' );
   readonly warnings = computed( () => this.rendered()?.warnings || [] );
-  readonly busy = computed( () => this.writing() || this.saving() || this.testing() || !!this.send()?.working );
+  readonly busy = computed( () => this.writing() || this.saving() || this.testing() || !!this.send()?.working || !!this.send()?.customers?.sending );
   readonly canWrite = computed( () => !this.busy() && !!this.ask().trim() );
   readonly sendReady = computed( () => {
     const step = this.send();
@@ -172,7 +220,8 @@ export class TemplatesComponent {
     this.openSection.set( '' );
     this.documentId.set( '' );
     track( 'template_chosen' );
-    void this.router.navigate( [ '/templates', id ] );
+    // Keeps ?to=customers (from the Store's "Email your customers").
+    void this.router.navigate( [ '/templates', id ], { queryParamsHandling: 'preserve' } );
   }
 
   blank (): void {
@@ -293,15 +342,20 @@ export class TemplatesComponent {
 
   openSend (): void {
     this.error.set( '' );
-    this.send.set( { target: null, checking: false, canSend: null, fillIns: [], values: {}, working: false, openUrl: '', error: '' } );
+    this.send.set( { target: null, checking: false, canSend: null, fillIns: [], values: {}, working: false, openUrl: '', error: '', customers: null } );
+    if ( this.fromStore() ) void this.pickTarget( 'customers' );
   }
 
   closeSend (): void {
     this.send.set( null );
   }
 
-  async pickTarget ( target: HandoffTarget ): Promise<void> {
-    this.send.set( { target, checking: true, canSend: null, fillIns: [], values: {}, working: false, openUrl: '', error: '' } );
+  async pickTarget ( target: SendTarget ): Promise<void> {
+    this.send.set( { target, checking: true, canSend: null, fillIns: [], values: {}, working: false, openUrl: '', error: '', customers: null } );
+    if ( target === 'customers' ) {
+      await this.checkCustomers();
+      return;
+    }
     try {
       const finished = await this.api.renderTemplate( this.state(), { strict: true } );
       const check = await this.api.handoffCheck( finished.subject, finished.html );
@@ -317,9 +371,39 @@ export class TemplatesComponent {
     if ( step ) this.patchSend( { values: { ...step.values, [ token ]: value } } );
   }
 
+  /** "Your Store customers": the email must be finished (strict), then who it reaches. */
+  private async checkCustomers (): Promise<void> {
+    try {
+      await this.api.renderTemplate( this.state(), { strict: true } );
+      const audience = await this.api.getCustomerAudience();
+      this.audience.set( audience );
+      this.patchSend( {
+        checking: false,
+        canSend: audience.canSend,
+        customers: { count: audience.count, line: customerLine( audience ), sendLabel: `Send to ${ people( audience.count ) }`, sendId: newSendId(), sending: false, result: null, resultLine: '' },
+      } );
+    } catch ( error ) {
+      this.patchSend( { checking: false, canSend: null, error: this.message( error, 'Couldn’t check this email.' ) } );
+    }
+  }
+
+  async sendCustomers (): Promise<void> {
+    const step = this.send();
+    const customers = step?.customers;
+    if ( !step || !customers || customers.sending || !customers.count ) return;
+    this.patchSend( { error: '', customers: { ...customers, sending: true } } );
+    try {
+      const result = await this.api.sendToCustomers( this.state(), customers.sendId );
+      this.patchSend( { customers: { ...customers, sending: false, result, resultLine: customerResultLine( result ), sendLabel: result.left ? `Send to the rest (${ people( result.left ) })` : customers.sendLabel } } );
+      track( 'template_sent_to_customers' );
+    } catch ( error ) {
+      this.patchSend( { error: this.message( error, 'Couldn’t send to your customers.' ), customers: { ...customers, sending: false } } );
+    }
+  }
+
   async handOff (): Promise<void> {
     const step = this.send();
-    if ( !step?.target || !this.sendReady() ) return;
+    if ( !step?.target || step.target === 'customers' || !this.sendReady() ) return;
     this.patchSend( { working: true, error: '' } );
     try {
       const finished = await this.api.renderTemplate( this.state(), { strict: true } );
@@ -334,6 +418,8 @@ export class TemplatesComponent {
   // ---- loading ----
 
   private async loadCatalog (): Promise<void> {
+    // Extra: a failed count only hides "Your Store customers".
+    void this.api.getCustomerAudience().then( ( audience ) => this.audience.set( audience ), () => null );
     try {
       this.catalog.set( await this.api.getTemplates() );
     } catch ( error ) {
