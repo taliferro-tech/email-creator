@@ -75,8 +75,9 @@
                 <div class="section" [class.off]="!g.on" [class.open]="g.open">
                   <div class="section-row">
                     <button type="button" class="section-name" (click)="editSection(g.id)" [disabled]="!g.fields.length" [attr.aria-expanded]="g.open" [attr.data-cy]="'section-' + g.id">
+                      @if (g.fields.length) { <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg> }
                       {{ g.label }}@if (!g.on) { <span class="muted"> · hidden</span> }
-                      @if (g.open) { <span class="editing">Editing</span> }
+                      @if (g.fields.length) { <span class="editing">{{ g.open ? 'Done' : 'Edit' }}</span> }
                     </button>
                     <button type="button" class="switch" role="switch" [attr.aria-checked]="g.on" [attr.aria-label]="'Show ' + g.label" (click)="toggleSection(g.id)" [attr.data-cy]="'toggle-' + g.id"><span></span></button>
                   </div>
