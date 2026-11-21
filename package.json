@@ -2,6 +2,7 @@
   "name": "email-creator",
   "version": "0.0.0",
   "scripts": {
+    "auth:ui": "npx google-artifactregistry-auth",
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
@@ -24,7 +25,7 @@
     "@angular/platform-server": "^19.2.25",
     "@angular/router": "^19.0.0",
     "@angular/ssr": "^19.2.27",
-    "@taliferro/ui": "file:../../taliferro-ui",
+    "@taliferro/ui": "^1.0.0",
     "express": "^4.22.3",
     "fflate": "^0.8.2",
     "firebase": "^11.10.0",
