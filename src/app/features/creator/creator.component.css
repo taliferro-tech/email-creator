@@ -141,6 +141,7 @@ button.dismiss { padding: 2px 8px; border: 0; background: transparent; color: va
 .attach { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px 0 10px; border: 0; border-radius: 999px; background: var(--bg); color: var(--text); font-size: 14px; font-weight: 600; }
 .attach svg { width: 16px; height: 16px; }
 .ask-maya { display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--t-violet); color: var(--t-violet-fg); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.ask-maya .short { display: none; }
 .hint { margin-left: auto; color: var(--muted); font-size: 12px; }
 .send { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: var(--surface2); color: var(--muted); }
 .send.is-ready { background: var(--blue); color: #fff; }
@@ -227,7 +228,14 @@ button.dismiss { padding: 2px 8px; border: 0; background: transparent; color: va
   .intro h1 { font-size: 34px; }
   .composer-area, .app--panel .composer-area { padding: 8px 12px 28px; }
   .hint { display: none; }
-  .send { margin-left: auto; }
+  /* Phone: the attach button goes icon-only and the Marketing Assistant
+     button takes its short label, so the row fits a 390px screen (it made
+     the page 449px wide). */
+  .attach { padding: 0 10px; }
+  .attach-label { display: none; }
+  .ask-maya { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .ask-maya .short { display: inline; }
+  .send { flex: none; margin-left: auto; }
   .panel { margin: 0 12px 16px; padding: 12px; }
   .send-choices { grid-template-columns: 1fr; }
 }

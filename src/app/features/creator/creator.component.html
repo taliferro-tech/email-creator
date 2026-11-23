@@ -219,17 +219,17 @@
             ></textarea>
 
             <div class="composer-actions">
-              <button type="button" class="attach" (click)="openFilePicker()" title="Attach a logo or images">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg><span>Logo or images</span>
+              <button type="button" class="attach" (click)="openFilePicker()" title="Attach a logo or images" aria-label="Attach a logo or images">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg><span class="attach-label">Logo or images</span>
               </button>
               @if (canAskMaya()) {
                 <button type="button" class="ask-maya" (click)="askMaya()" [disabled]="!canSendToMaya() || noneLeft()"
                   title="Marketing Assistant, your Marketing Director, writes the words from what you typed; 16Ahead designs them">
-                  Ask the Marketing Assistant to write it
+                  <span class="long">Ask the Marketing Assistant to write it</span><span class="short">Marketing Assistant writes it</span>
                 </button>
               } @else {
                 <a class="ask-maya" [href]="mayaPricingUrl" target="_blank" rel="noopener"
-                  title="Marketing Assistant, your Marketing Director, can write your emails - comes with the Marketing Assistant app">Ask the Marketing Assistant to write it</a>
+                  title="Marketing Assistant, your Marketing Director, can write your emails - comes with the Marketing Assistant app"><span class="long">Ask the Marketing Assistant to write it</span><span class="short">Marketing Assistant writes it</span></a>
               }
               <span class="hint">Enter to send</span>
               <button type="button" class="send" [class.is-ready]="canSend() && !noneLeft()" (click)="send()" [disabled]="!canSend() || noneLeft()" aria-label="Send">
