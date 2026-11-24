@@ -12,6 +12,7 @@ class PlatformMenuStubComponent {
   @Input() isLoggedIn = false;
   @Input() userName = '';
   @Input() userEmail = '';
+  @Input() userId = '';
   @Output() signIn = new EventEmitter<void>();
   @Output() signOut = new EventEmitter<void>();
 }
