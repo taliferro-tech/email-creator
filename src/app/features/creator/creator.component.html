@@ -31,7 +31,7 @@
       } @else if (auth.user() === null) {
         <button type="button" class="pill pill--text" (click)="auth.signIn()">Sign in</button>
       }
-      <app-platform-menu [isLoggedIn]="!!auth.user()" [userName]="auth.user()?.displayName || ''" [userEmail]="auth.user()?.email || ''" (signIn)="auth.signIn()" (signOut)="signOut()" />
+      <app-platform-menu [isLoggedIn]="!!auth.user()" [userName]="auth.user()?.displayName || ''" [userEmail]="auth.user()?.email || ''" [userId]="auth.user()?.uid || ''" (signIn)="auth.signIn()" (signOut)="signOut()" />
     </div>
   </header>
 

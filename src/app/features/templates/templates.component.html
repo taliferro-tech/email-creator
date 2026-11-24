@@ -10,7 +10,7 @@
         <span class="usage" title="Free emails reset at midnight Pacific time.">{{ u.remaining }} of {{ u.limit }} free left today</span>
       }
       <a class="pill" routerLink="/" data-cy="back-to-chat">Describe one instead</a>
-      <app-platform-menu [isLoggedIn]="!!auth.user()" [userName]="auth.user()?.displayName || ''" [userEmail]="auth.user()?.email || ''" (signIn)="auth.signIn()" (signOut)="auth.signOut()" />
+      <app-platform-menu [isLoggedIn]="!!auth.user()" [userName]="auth.user()?.displayName || ''" [userEmail]="auth.user()?.email || ''" [userId]="auth.user()?.uid || ''" (signIn)="auth.signIn()" (signOut)="auth.signOut()" />
     </div>
   </header>
 
